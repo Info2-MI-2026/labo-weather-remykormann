@@ -61,7 +61,7 @@ void help(FILE *fp)
 }
 
 int collect_data(WData *data, FILE *fp) {
-    char buffer[MAX_LIGNE];
+    char buffer[MAX_LIGNE] = {0};
     int firstYear = 1;
     for(int i = 0; i < MAX_ENTRIES; i++){
         data->years[i].year = 0;
@@ -107,6 +107,7 @@ void fprint_csv(FILE *fp, WData *data) {
 void fprint_binary(FILE *fp, WData *data) {
     fwrite("WEATHER", 8, 1, fp);
     for(int i = 0; i < MAX_ENTRIES; i++){
+        if(data->years[i].year == 0) return;
         fwrite(&data->years[i].year, 4, 1, fp);
         fwrite(&data->years[i].precipitations, 4, 1, fp);
         fwrite(&data->years[i].temperature, 4, 1, fp);
@@ -115,31 +116,64 @@ void fprint_binary(FILE *fp, WData *data) {
 
 void process_arg(int argc, char *argv[])
 {
+    bool binary = false;
+    char* filename = "";
+    char outputFilename[256] = {0};
+
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
         {
             version(stdout);
+            return;
         }
+        if (strcmp(argv[i], "--help") == 0)
+        {
+            help(stdout);
+            return;
+        }
+        if (strcmp(argv[i], "--binary") == 0 || strcmp(argv[i], "-b") == 0)
+        {
+            binary = true;
+            continue;
+        }
+        if (strcmp(argv[i], "-o") == 0)
+        {
+            if(i+1 >= argc) exit(2);
+            sscanf(argv[i+1], "%s", outputFilename);
+            i++;
+            continue;
+        }
+
+        if(argv[i][0] != '-'){
+            filename = argv[i];
+            continue;
+        }
+        
     }
+    FILE* fp = stdin;
+    if(strcmp(filename, "") != 0){
+        fp = fopen(filename, "r");
+    }
+    if (fp == NULL) exit(1);
+    WData data;
+    collect_data(&data, fp);
+    fclose(fp);
+    fp = stdout;
+    if(outputFilename[0] != '\0'){
+        fp = fopen(outputFilename, "w");
+    }
+    if (fp == NULL) exit(1);
+    if(binary){
+        fprint_binary(fp, &data);
+        fclose(fp);
+        return;
+    }
+    fprint_csv(fp, &data);
+    fclose(fp);
 }
 
 int main(int argc, char *argv[])
 {
-    char* filename = "assets/weather-bern.txt";
-    WData data;
     process_arg(argc, argv);
-    FILE* fp = fopen(filename, "r");
-    if (fp == NULL) return 1;
-    collect_data(&data, fp);
-    fclose(fp);
-    fp = fopen("data.csv", "w");
-    if (fp == NULL) return 1;
-    fprint_csv(fp, &data);
-    fclose(fp);
-    fp = fopen("data.bin", "w");
-    if (fp == NULL) return 1;
-    fprint_binary(fp, &data);
-    fclose(fp);
-    
 }
